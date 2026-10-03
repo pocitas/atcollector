@@ -351,7 +351,6 @@ fun SourcesScreen(
 ) {
     val sources by viewModel.sources.collectAsState()
     val scope = rememberCoroutineScope()
-    val context = LocalContext.current
     val direction = LocalLayoutDirection.current
     val endInset = if (direction == LayoutDirection.Ltr) {
         contentPadding.calculateRightPadding(direction)
@@ -369,6 +368,8 @@ fun SourcesScreen(
                 item { EmptyHint() }
             }
             items(sources, key = { it.id }) { source ->
+                val deletedMessage = stringResource(R.string.source_deleted, source.name)
+                val undoLabel = stringResource(R.string.undo)
                 TopAlignedListItem(
                     leadingContent = {
                         Icon(painterResource(source.type.iconRes), contentDescription = null)
@@ -386,8 +387,8 @@ fun SourcesScreen(
                                 scope.launch {
                                     snackbarHostState.currentSnackbarData?.dismiss()
                                     val result = snackbarHostState.showSnackbar(
-                                        message = context.getString(R.string.source_deleted, source.name),
-                                        actionLabel = context.getString(R.string.undo),
+                                        message = deletedMessage,
+                                        actionLabel = undoLabel,
                                         withDismissAction = true,
                                     )
                                     if (result == SnackbarResult.ActionPerformed) viewModel.restore(source, index)
