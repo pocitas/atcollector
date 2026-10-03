@@ -4,6 +4,9 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
+import androidx.compose.runtime.collectAsState
+import cz.pocitas.atcollector.ui.AddSourceScreen
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -49,47 +52,61 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import dagger.hilt.android.AndroidEntryPoint
 import cz.pocitas.atcollector.ui.theme.AtcollectorTheme
 import kotlinx.coroutines.launch
 
 /** Sections shown in the left pane menu. */
 enum class Section(val label: String) {
     STATUS("Status"),
-    CONNECTIONS("Connections"),
+    SOURCES("Sources"),
 }
-
-/** Placeholder data model for a single connection. */
-data class ConnectionInfo(
-    val id: String,
-    val name: String,
-    val status: String,
-)
-
-private val samplePlaceholderConnections = listOf(
-    ConnectionInfo("1", "XC Guide", "Unknown"),
-    ConnectionInfo("2", "SoftRF", "Connected")
-)
 
 /** Screen is wide enough to show the left pane permanently above this width. */
 private val WidePaneThreshold = 600.dp
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    private val viewModel: SourcesViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             AtcollectorTheme {
-                AdaptiveApp()
+                AdaptiveApp(viewModel)
             }
         }
     }
 }
 
 @Composable
-fun AdaptiveApp() {
+fun AdaptiveApp(viewModel: SourcesViewModel) {
     var selectedSection by rememberSaveable { mutableStateOf(Section.STATUS) }
+    var editorOpen by rememberSaveable { mutableStateOf(false) }
+    var editingId by rememberSaveable { mutableStateOf<String?>(null) }
+    val sources by viewModel.sources.collectAsState()
+
+    if (editorOpen) {
+        val devices by viewModel.devices.collectAsState()
+        val isScanning by viewModel.isScanning.collectAsState()
+        val close = { editorOpen = false; editingId = null }
+        AddSourceScreen(
+            initial = sources.firstOrNull { it.id == editingId },
+            devices = devices,
+            isScanning = isScanning,
+            onStartScan = viewModel::startScan,
+            onStopScan = viewModel::stopScan,
+            onBlePermissionsGranted = viewModel::onBlePermissionsGranted,
+            onSave = { viewModel.save(it); close() },
+            onCancel = close,
+            modifier = Modifier.fillMaxSize(),
+        )
+        return
+    }
+    val onAdd = { editingId = null; editorOpen = true }
+    val onEdit = { id: String -> editingId = id; editorOpen = true }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -97,11 +114,13 @@ fun AdaptiveApp() {
 
         if (isWidePane) {
             WideLayout(
+                viewModel = viewModel, onAdd = onAdd, onEdit = onEdit,
                 selectedSection = selectedSection,
                 onSectionSelected = { selectedSection = it },
             )
         } else {
             NarrowLayout(
+                viewModel = viewModel, onAdd = onAdd, onEdit = onEdit,
                 selectedSection = selectedSection,
                 onSectionSelected = { selectedSection = it },
                 drawerState = drawerState,
@@ -114,7 +133,13 @@ fun AdaptiveApp() {
  * Wide screens (tablets, landscape): the categories menu is always visible.
  */
 @Composable
-private fun WideLayout(selectedSection: Section, onSectionSelected: (Section) -> Unit) {
+private fun WideLayout(
+    viewModel: SourcesViewModel,
+    onAdd: () -> Unit,
+    onEdit: (String) -> Unit,
+    selectedSection: Section,
+    onSectionSelected: (Section) -> Unit,
+) {
     PermanentNavigationDrawer(
         drawerContent = {
             PermanentDrawerSheet(modifier = Modifier.width(240.dp)) {
@@ -124,6 +149,9 @@ private fun WideLayout(selectedSection: Section, onSectionSelected: (Section) ->
     ) {
         Scaffold { innerPadding ->
             MainContent(
+                viewModel = viewModel,
+                onAdd = onAdd,
+                onEdit = onEdit,
                 section = selectedSection,
                 modifier = Modifier
                     .fillMaxSize(),
@@ -139,6 +167,9 @@ private fun WideLayout(selectedSection: Section, onSectionSelected: (Section) ->
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun NarrowLayout(
+    viewModel: SourcesViewModel,
+    onAdd: () -> Unit,
+    onEdit: (String) -> Unit,
     selectedSection: Section,
     onSectionSelected: (Section) -> Unit,
     drawerState: DrawerState,
@@ -194,6 +225,9 @@ private fun NarrowLayout(
             },
         ) { innerPadding ->
             MainContent(
+                viewModel = viewModel,
+                onAdd = onAdd,
+                onEdit = onEdit,
                 section = selectedSection,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = innerPadding,
@@ -223,42 +257,63 @@ fun CategoryMenu(
 
 @Composable
 fun MainContent(
+    viewModel: SourcesViewModel,
+    onAdd: () -> Unit,
+    onEdit: (String) -> Unit,
     section: Section,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(),
 ) {
     when (section) {
-        Section.STATUS -> StatusScreen(modifier, contentPadding)
-        Section.CONNECTIONS -> ConnectionsScreen(modifier, contentPadding)
+        Section.STATUS -> StatusScreen(viewModel, modifier, contentPadding)
+        Section.SOURCES -> SourcesScreen(viewModel, onAdd, onEdit, modifier, contentPadding)
     }
 }
 
-/** Shows the status of each known connection. */
+@Composable
+private fun EmptyHint() {
+    Text(
+        text = "No sources yet. Add one in the Sources section.",
+        modifier = Modifier.padding(16.dp),
+    )
+}
+
+/** Shows the status of each configured source. */
 @Composable
 fun StatusScreen(
+    viewModel: SourcesViewModel,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(),
 ) {
+    val sources by viewModel.sources.collectAsState()
+    val statuses by viewModel.statuses.collectAsState()
     LazyColumn(
         modifier = modifier.consumeWindowInsets(contentPadding),
         contentPadding = contentPadding,
     ) {
-        items(samplePlaceholderConnections) { connection ->
+        if (sources.isEmpty()) {
+            item { EmptyHint() }
+        }
+        items(sources, key = { it.id }) { source ->
             ListItem(
-                headlineContent = { Text(connection.name) },
-                supportingContent = { Text(connection.status) },
+                headlineContent = { Text(source.name) },
+                supportingContent = { Text(statuses[source.id]?.label ?: "Stopped") },
             )
             HorizontalDivider()
         }
     }
 }
 
-/** Lists connections with edit/delete actions, plus a button to add a new one. */
+/** Lists sources with edit/delete actions, plus a button to add a new one. */
 @Composable
-fun ConnectionsScreen(
+fun SourcesScreen(
+    viewModel: SourcesViewModel,
+    onAdd: () -> Unit,
+    onEdit: (String) -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(),
 ) {
+    val sources by viewModel.sources.collectAsState()
     Box(modifier = modifier) {
         LazyColumn(
             modifier = Modifier
@@ -266,16 +321,20 @@ fun ConnectionsScreen(
                 .consumeWindowInsets(contentPadding),
             contentPadding = contentPadding,
         ) {
-            items(samplePlaceholderConnections) { connection ->
+            if (sources.isEmpty()) {
+                item { EmptyHint() }
+            }
+            items(sources, key = { it.id }) { source ->
                 ListItem(
-                    headlineContent = { Text(connection.name) },
+                    headlineContent = { Text(source.name) },
+                    supportingContent = { Text(source.type.label) },
                     trailingContent = {
                         Row {
-                            IconButton(onClick = { /* TODO: edit connection */ }) {
-                                Icon(Icons.Filled.Edit, contentDescription = "Edit ${connection.name}")
+                            IconButton(onClick = { onEdit(source.id) }) {
+                                Icon(Icons.Filled.Edit, contentDescription = "Edit ${source.name}")
                             }
-                            IconButton(onClick = { /* TODO: delete connection */ }) {
-                                Icon(Icons.Filled.Delete, contentDescription = "Delete ${connection.name}")
+                            IconButton(onClick = { viewModel.delete(source.id) }) {
+                                Icon(Icons.Filled.Delete, contentDescription = "Delete ${source.name}")
                             }
                         }
                     },
@@ -285,7 +344,7 @@ fun ConnectionsScreen(
             item { Spacer(Modifier.height(88.dp)) }
         }
         FloatingActionButton(
-            onClick = { /* TODO: add new connection */ },
+            onClick = onAdd,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(
@@ -293,19 +352,7 @@ fun ConnectionsScreen(
                     bottom = contentPadding.calculateBottomPadding() + 16.dp,
                 ),
         ) {
-            Icon(Icons.Filled.Add, contentDescription = "Add connection")
+            Icon(Icons.Filled.Add, contentDescription = "Add source")
         }
     }
-}
-
-@Preview(name = "Phone", showBackground = true, widthDp = 411, heightDp = 891)
-@Composable
-fun AdaptiveAppPhonePreview() {
-    AtcollectorTheme { AdaptiveApp() }
-}
-
-@Preview(name = "Tablet", showBackground = true, widthDp = 1024, heightDp = 768)
-@Composable
-fun AdaptiveAppTabletPreview() {
-    AtcollectorTheme { AdaptiveApp() }
 }
