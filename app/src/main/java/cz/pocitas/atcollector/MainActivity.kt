@@ -7,6 +7,23 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.runtime.collectAsState
 import cz.pocitas.atcollector.ui.AddSourceScreen
+import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.MaterialTheme
+import cz.pocitas.atcollector.ui.theme.StatusAmberDark
+import cz.pocitas.atcollector.ui.theme.StatusAmberLight
+import cz.pocitas.atcollector.ui.theme.StatusGreenDark
+import cz.pocitas.atcollector.ui.theme.StatusGreenLight
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.runtime.remember
+import androidx.compose.ui.res.painterResource
+import cz.pocitas.atcollector.source.SourceHealth
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -14,6 +31,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -33,8 +51,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
@@ -52,15 +70,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import dagger.hilt.android.AndroidEntryPoint
 import cz.pocitas.atcollector.ui.theme.AtcollectorTheme
 import kotlinx.coroutines.launch
 
 /** Sections shown in the left pane menu. */
-enum class Section(val label: String) {
-    STATUS("Status"),
-    SOURCES("Sources"),
+enum class Section(@StringRes val labelRes: Int, @DrawableRes val iconRes: Int) {
+    STATUS(R.string.section_status, R.drawable.ic_eyeglasses_2),
+    SOURCES(R.string.section_sources, R.drawable.ic_exit_to_app),
 }
 
 /** Screen is wide enough to show the left pane permanently above this width. */
@@ -108,6 +127,7 @@ fun AdaptiveApp(viewModel: SourcesViewModel) {
     val onAdd = { editingId = null; editorOpen = true }
     val onEdit = { id: String -> editingId = id; editorOpen = true }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
+    val snackbarHostState = remember { SnackbarHostState() }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val isWidePane = maxWidth >= WidePaneThreshold
@@ -117,6 +137,7 @@ fun AdaptiveApp(viewModel: SourcesViewModel) {
                 viewModel = viewModel, onAdd = onAdd, onEdit = onEdit,
                 selectedSection = selectedSection,
                 onSectionSelected = { selectedSection = it },
+                snackbarHostState = snackbarHostState,
             )
         } else {
             NarrowLayout(
@@ -124,6 +145,7 @@ fun AdaptiveApp(viewModel: SourcesViewModel) {
                 selectedSection = selectedSection,
                 onSectionSelected = { selectedSection = it },
                 drawerState = drawerState,
+                snackbarHostState = snackbarHostState,
             )
         }
     }
@@ -139,6 +161,7 @@ private fun WideLayout(
     onEdit: (String) -> Unit,
     selectedSection: Section,
     onSectionSelected: (Section) -> Unit,
+    snackbarHostState: SnackbarHostState,
 ) {
     PermanentNavigationDrawer(
         drawerContent = {
@@ -147,8 +170,9 @@ private fun WideLayout(
             }
         },
     ) {
-        Scaffold { innerPadding ->
+        Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { innerPadding ->
             MainContent(
+                snackbarHostState = snackbarHostState,
                 viewModel = viewModel,
                 onAdd = onAdd,
                 onEdit = onEdit,
@@ -173,6 +197,7 @@ private fun NarrowLayout(
     selectedSection: Section,
     onSectionSelected: (Section) -> Unit,
     drawerState: DrawerState,
+    snackbarHostState: SnackbarHostState,
 ) {
     val scope = rememberCoroutineScope()
 
@@ -188,7 +213,7 @@ private fun NarrowLayout(
                     IconButton(
                         onClick = { scope.launch { drawerState.close() } },
                     ) {
-                        Icon(Icons.Filled.Close, contentDescription = "Close menu")
+                        Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.close_menu))
                     }
                 }
                 CategoryMenu(
@@ -203,9 +228,10 @@ private fun NarrowLayout(
         },
     ) {
         Scaffold(
+            snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
                 TopAppBar(
-                    title = { Text(selectedSection.label) },
+                    title = { Text(stringResource(selectedSection.labelRes)) },
                     // The drawer has its own close button.
                     navigationIcon = {
                         IconButton(
@@ -217,7 +243,7 @@ private fun NarrowLayout(
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.Menu,
-                                contentDescription = "Open menu",
+                                contentDescription = stringResource(R.string.open_menu),
                             )
                         }
                     },
@@ -225,6 +251,7 @@ private fun NarrowLayout(
             },
         ) { innerPadding ->
             MainContent(
+                snackbarHostState = snackbarHostState,
                 viewModel = viewModel,
                 onAdd = onAdd,
                 onEdit = onEdit,
@@ -246,7 +273,8 @@ fun CategoryMenu(
     LazyColumn(modifier = modifier.fillMaxSize().padding(vertical = 8.dp)) {
         items(Section.entries) { section ->
             NavigationDrawerItem(
-                label = { Text(section.label) },
+                icon = { Icon(painterResource(section.iconRes), contentDescription = null) },
+                label = { Text(stringResource(section.labelRes)) },
                 selected = section == selectedSection,
                 onClick = { onSectionSelected(section) },
                 modifier = Modifier.padding(horizontal = 8.dp),
@@ -257,6 +285,7 @@ fun CategoryMenu(
 
 @Composable
 fun MainContent(
+    snackbarHostState: SnackbarHostState,
     viewModel: SourcesViewModel,
     onAdd: () -> Unit,
     onEdit: (String) -> Unit,
@@ -266,14 +295,14 @@ fun MainContent(
 ) {
     when (section) {
         Section.STATUS -> StatusScreen(viewModel, modifier, contentPadding)
-        Section.SOURCES -> SourcesScreen(viewModel, onAdd, onEdit, modifier, contentPadding)
+        Section.SOURCES -> SourcesScreen(viewModel, snackbarHostState, onAdd, onEdit, modifier, contentPadding)
     }
 }
 
 @Composable
 private fun EmptyHint() {
     Text(
-        text = "No sources yet. Add one in the Sources section.",
+        text = stringResource(R.string.no_sources),
         modifier = Modifier.padding(16.dp),
     )
 }
@@ -287,6 +316,7 @@ fun StatusScreen(
 ) {
     val sources by viewModel.sources.collectAsState()
     val statuses by viewModel.statuses.collectAsState()
+    val context = LocalContext.current
     LazyColumn(
         modifier = modifier.consumeWindowInsets(contentPadding),
         contentPadding = contentPadding,
@@ -295,9 +325,14 @@ fun StatusScreen(
             item { EmptyHint() }
         }
         items(sources, key = { it.id }) { source ->
-            ListItem(
+            val status = statuses[source.id]
+            TopAlignedListItem(
+                leadingContent = {
+                    Icon(painterResource(source.type.iconRes), contentDescription = stringResource(source.type.labelRes))
+                },
                 headlineContent = { Text(source.name) },
-                supportingContent = { Text(statuses[source.id]?.label ?: "Stopped") },
+                supportingContent = { Text(status?.label(context) ?: stringResource(R.string.status_stopped)) },
+                trailingContent = { HealthIcon(status?.health ?: SourceHealth.WARNING) },
             )
             HorizontalDivider()
         }
@@ -308,12 +343,21 @@ fun StatusScreen(
 @Composable
 fun SourcesScreen(
     viewModel: SourcesViewModel,
+    snackbarHostState: SnackbarHostState,
     onAdd: () -> Unit,
     onEdit: (String) -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(),
 ) {
     val sources by viewModel.sources.collectAsState()
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val direction = LocalLayoutDirection.current
+    val endInset = if (direction == LayoutDirection.Ltr) {
+        contentPadding.calculateRightPadding(direction)
+    } else {
+        contentPadding.calculateLeftPadding(direction)
+    }
     Box(modifier = modifier) {
         LazyColumn(
             modifier = Modifier
@@ -325,16 +369,31 @@ fun SourcesScreen(
                 item { EmptyHint() }
             }
             items(sources, key = { it.id }) { source ->
-                ListItem(
+                TopAlignedListItem(
+                    leadingContent = {
+                        Icon(painterResource(source.type.iconRes), contentDescription = null)
+                    },
                     headlineContent = { Text(source.name) },
-                    supportingContent = { Text(source.type.label) },
+                    supportingContent = { Text(stringResource(source.type.labelRes)) },
                     trailingContent = {
                         Row {
                             IconButton(onClick = { onEdit(source.id) }) {
-                                Icon(Icons.Filled.Edit, contentDescription = "Edit ${source.name}")
+                                Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.edit_source_named, source.name))
                             }
-                            IconButton(onClick = { viewModel.delete(source.id) }) {
-                                Icon(Icons.Filled.Delete, contentDescription = "Delete ${source.name}")
+                            IconButton(onClick = {
+                                val index = sources.indexOf(source)
+                                viewModel.delete(source.id)
+                                scope.launch {
+                                    snackbarHostState.currentSnackbarData?.dismiss()
+                                    val result = snackbarHostState.showSnackbar(
+                                        message = context.getString(R.string.source_deleted, source.name),
+                                        actionLabel = context.getString(R.string.undo),
+                                        withDismissAction = true,
+                                    )
+                                    if (result == SnackbarResult.ActionPerformed) viewModel.restore(source, index)
+                                }
+                            }) {
+                                Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.delete_source_named, source.name))
                             }
                         }
                     },
@@ -348,11 +407,49 @@ fun SourcesScreen(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(
-                    end = 16.dp,
+                    end = endInset + 16.dp,
                     bottom = contentPadding.calculateBottomPadding() + 16.dp,
                 ),
         ) {
-            Icon(Icons.Filled.Add, contentDescription = "Add source")
+            Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.add_source))
         }
+    }
+}
+
+@Composable
+private fun HealthIcon(health: SourceHealth) {
+    val (icon, label) = when (health) {
+        SourceHealth.HEALTHY -> R.drawable.ic_check_circle to R.string.health_healthy
+        SourceHealth.WARNING -> R.drawable.ic_warning to R.string.health_warning
+        SourceHealth.ERROR -> R.drawable.ic_dangerous to R.string.health_error
+    }
+    val dark = isSystemInDarkTheme()
+    val tint = when (health) {
+        SourceHealth.HEALTHY -> if (dark) StatusGreenDark else StatusGreenLight
+        SourceHealth.WARNING -> if (dark) StatusAmberDark else StatusAmberLight
+        SourceHealth.ERROR -> MaterialTheme.colorScheme.error
+    }
+    Icon(painterResource(icon), contentDescription = stringResource(label), tint = tint)
+}
+
+/** Like [androidx.compose.material3.ListItem], but leading and trailing content stay at the top. */
+@Composable
+private fun TopAlignedListItem(
+    headlineContent: @Composable () -> Unit,
+    supportingContent: @Composable () -> Unit,
+    leadingContent: @Composable () -> Unit,
+    trailingContent: @Composable () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        leadingContent()
+        Column(modifier = Modifier.weight(1f)) {
+            ProvideTextStyle(MaterialTheme.typography.bodyLarge) { headlineContent() }
+            ProvideTextStyle(MaterialTheme.typography.bodyMedium) { supportingContent() }
+        }
+        trailingContent()
     }
 }

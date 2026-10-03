@@ -22,7 +22,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.Alignment
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
@@ -36,10 +39,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import cz.pocitas.atcollector.BleDevice
+import cz.pocitas.atcollector.R
 import cz.pocitas.atcollector.model.BleSourceConfig
 import cz.pocitas.atcollector.model.HttpsSourceConfig
 import cz.pocitas.atcollector.model.SourceConfig
@@ -89,6 +95,10 @@ fun AddSourceScreen(
         else permissionLauncher.launch(BlePermissions.required())
     }
 
+    val scanWanted = type == SourceType.BLE && initial == null
+    LaunchedEffect(scanWanted) {
+        if (scanWanted) scan() else onStopScan()
+    }
     DisposableEffect(Unit) { onDispose(onStopScan) }
     BackHandler(onBack = onCancel)
 
@@ -124,10 +134,10 @@ fun AddSourceScreen(
         modifier = modifier,
         topBar = {
             TopAppBar(
-                title = { Text(if (initial == null) "Add source" else "Edit source") },
+                title = { Text(stringResource(if (initial == null) R.string.add_source else R.string.edit_source)) },
                 navigationIcon = {
                     IconButton(onClick = onCancel) {
-                        Icon(Icons.Filled.Close, contentDescription = "Cancel")
+                        Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.cancel))
                     }
                 },
             )
@@ -141,15 +151,19 @@ fun AddSourceScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("Type", style = MaterialTheme.typography.labelLarge)
+            Text(stringResource(R.string.field_type), style = MaterialTheme.typography.labelLarge)
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 SourceType.entries.forEach { option ->
                     FilterChip(
                         selected = type == option,
                         enabled = option.implemented && (initial == null || initial.type == option),
                         onClick = { type = option },
+                        leadingIcon = {
+                            Icon(painterResource(option.iconRes), contentDescription = null, modifier = Modifier.size(18.dp))
+                        },
                         label = {
-                            Text(option.label + if (option.implemented) "" else " (coming later)")
+                            val label = stringResource(option.labelRes)
+                            Text(if (option.implemented) label else stringResource(R.string.coming_later_suffix, label))
                         },
                     )
                 }
@@ -158,7 +172,7 @@ fun AddSourceScreen(
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
-                label = { Text("Name (optional)") },
+                label = { Text(stringResource(R.string.field_name_optional)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -168,14 +182,14 @@ fun AddSourceScreen(
                     OutlinedTextField(
                         value = host,
                         onValueChange = { host = it },
-                        label = { Text("Host") },
+                        label = { Text(stringResource(R.string.field_host)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
                     OutlinedTextField(
                         value = port,
                         onValueChange = { port = it.filter(Char::isDigit).take(5) },
-                        label = { Text("Port") },
+                        label = { Text(stringResource(R.string.field_port)) },
                         singleLine = true,
                         isError = port.isNotEmpty() && portValue == null,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -187,7 +201,8 @@ fun AddSourceScreen(
                     OutlinedTextField(
                         value = url,
                         onValueChange = { url = it },
-                        label = { Text("URL") },
+                        label = { Text(stringResource(R.string.field_url)) },
+                        placeholder = { Text("https://") },
                         singleLine = true,
                         isError = !urlValid,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
@@ -196,7 +211,7 @@ fun AddSourceScreen(
                     OutlinedTextField(
                         value = pollSeconds,
                         onValueChange = { pollSeconds = it.filter(Char::isDigit).take(5) },
-                        label = { Text("Polling interval (seconds)") },
+                        label = { Text(stringResource(R.string.field_poll_interval)) },
                         singleLine = true,
                         isError = pollValue == null,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -205,9 +220,15 @@ fun AddSourceScreen(
                 }
 
                 SourceType.BLE -> {
-                    bleName?.let { Text("Selected: $it", style = MaterialTheme.typography.bodyLarge) }
-                    OutlinedButton(onClick = ::scan, enabled = !isScanning) {
-                        Text(if (isScanning) "Scanning…" else "Scan for devices")
+                    bleName?.let { Text(stringResource(R.string.ble_selected, it), style = MaterialTheme.typography.bodyLarge) }
+                    if (scanWanted && isScanning) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 3.dp)
+                            Text(stringResource(R.string.ble_scanning))
+                        }
                     }
                     devices.forEach { device ->
                         ListItem(
@@ -221,20 +242,21 @@ fun AddSourceScreen(
                                 onClick = {
                                     bleAddress = device.address
                                     bleName = device.name
+                                    if (name.isBlank()) name = device.name
                                 },
                             ),
                         )
                     }
                 }
 
-                SourceType.WIFI -> Text("Wi-Fi devices will be supported in a later version.")
+                SourceType.WIFI -> Text(stringResource(R.string.wifi_later))
             }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End,
             ) {
-                Button(onClick = { onSave(build()) }, enabled = valid) { Text("Save") }
+                Button(onClick = { onSave(build()) }, enabled = valid) { Text(stringResource(R.string.save)) }
             }
         }
     }

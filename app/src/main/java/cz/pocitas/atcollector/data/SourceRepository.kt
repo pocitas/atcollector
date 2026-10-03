@@ -35,6 +35,13 @@ class SourceRepository @Inject constructor(@ApplicationContext context: Context)
         save(updated)
     }
 
+    /** Re-adds a previously removed [config] at its original [index]. */
+    @Synchronized
+    fun restore(config: SourceConfig, index: Int) {
+        val current = _sources.value.filterNot { it.id == config.id }
+        save(current.toMutableList().apply { add(index.coerceIn(0, size), config) })
+    }
+
     @Synchronized
     fun remove(id: String) = save(_sources.value.filterNot { it.id == id })
 

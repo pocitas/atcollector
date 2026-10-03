@@ -1,3 +1,46 @@
-<resources>
+﻿<resources>
     <string name="app_name">ATCollector</string>
+
+    <string name="section_status">Status</string>
+    <string name="section_sources">Sources</string>
+
+    <string name="source_type_tcp">TCP client</string>
+    <string name="source_type_https">HTTPS polling</string>
+    <string name="source_type_ble">Bluetooth LE device</string>
+    <string name="source_type_wifi">Wi-Fi device</string>
+    <string name="coming_later_suffix">%1$s (coming later)</string>
+
+    <string name="status_stopped">Stopped</string>
+    <string name="status_connecting">Connecting…</string>
+    <string name="status_connected">Connected</string>
+    <string name="status_disconnected">Disconnected</string>
+    <string name="status_error">Error</string>
+    <string name="status_error_detail">Error: %1$s</string>
+    <string name="status_permission_required">Permission required</string>
+
+    <string name="close_menu">Close menu</string>
+    <string name="open_menu">Open menu</string>
+    <string name="no_sources">No sources yet.</string>
+    <string name="edit_source_named">Edit %1$s</string>
+    <string name="delete_source_named">Delete %1$s</string>
+    <string name="source_deleted">The source \"%1$s\" was deleted.</string>
+    <string name="undo">Undo</string>
+    <string name="health_healthy">Healthy</string>
+    <string name="health_warning">Warning</string>
+    <string name="health_error">Error</string>
+    <string name="add_source">Add source</string>
+    <string name="edit_source">Edit source</string>
+    <string name="cancel">Cancel</string>
+    <string name="save">Save</string>
+
+    <string name="field_type">Type</string>
+    <string name="field_name_optional">Name (optional)</string>
+    <string name="field_host">Host</string>
+    <string name="field_port">Port</string>
+    <string name="field_url">URL</string>
+    <string name="field_poll_interval">Polling interval (seconds)</string>
+
+    <string name="ble_selected">Selected: %1$s</string>
+    <string name="ble_scanning">Scanning…</string>
+    <string name="wifi_later">Wi-Fi devices will be supported in a later version.</string>
 </resources>

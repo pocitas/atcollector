@@ -1,10 +1,18 @@
 package cz.pocitas.atcollector.model
 
-enum class SourceType(val label: String, val implemented: Boolean = true) {
-    TCP("TCP client"),
-    HTTPS("HTTPS polling"),
-    BLE("Bluetooth LE device"),
-    WIFI("Wi-Fi device", implemented = false),
+import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
+import cz.pocitas.atcollector.R
+
+enum class SourceType(
+    @StringRes val labelRes: Int,
+    @DrawableRes val iconRes: Int,
+    val implemented: Boolean = true,
+) {
+    TCP(R.string.source_type_tcp, R.drawable.ic_mobile_share),
+    HTTPS(R.string.source_type_https, R.drawable.ic_public),
+    BLE(R.string.source_type_ble, R.drawable.ic_bluetooth),
+    WIFI(R.string.source_type_wifi, R.drawable.ic_wifi, implemented = false),
 }
 
 /** User-configured traffic source. Persisted (and backed up) by [cz.pocitas.atcollector.data.SourceRepository]. */

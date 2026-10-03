@@ -60,6 +60,8 @@ class SourcesViewModel @Inject constructor(
 
     fun delete(id: String) = repository.remove(id)
 
+    fun restore(config: SourceConfig, index: Int) = repository.restore(config, index)
+
     /** Call after BLE permissions were granted so that BLE sources retry immediately. */
     fun onBlePermissionsGranted() = manager.restartAll()
 

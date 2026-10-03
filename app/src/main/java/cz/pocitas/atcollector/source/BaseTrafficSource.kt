@@ -43,7 +43,7 @@ abstract class BaseTrafficSource(
                 try {
                     setStatus(SourceState.CONNECTING)
                     run()
-                    setStatus(SourceState.ERROR, "Disconnected")
+                    setStatus(SourceState.DISCONNECTED)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: PermissionMissingException) {
