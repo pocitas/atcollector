@@ -42,5 +42,8 @@
 
     <string name="ble_selected">Selected: %1$s</string>
     <string name="ble_scanning">Scanning…</string>
+    <string name="ble_bluetooth_disabled">Bluetooth is turned off. Enable it to scan for nearby devices.</string>
+    <string name="ble_enable_bluetooth">Enable Bluetooth</string>
+    <string name="ble_bluetooth_unavailable">Bluetooth is not available. Check permissions.</string>
     <string name="wifi_later">Wi-Fi devices will be supported in a later version.</string>
 </resources>

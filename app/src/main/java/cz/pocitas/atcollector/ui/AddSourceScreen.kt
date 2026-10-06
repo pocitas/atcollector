@@ -1,5 +1,7 @@
 package cz.pocitas.atcollector.ui
 
+import android.bluetooth.BluetoothAdapter
+import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -43,8 +45,10 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import cz.pocitas.atcollector.BleDevice
+import cz.pocitas.atcollector.BleBluetoothState
 import cz.pocitas.atcollector.R
 import cz.pocitas.atcollector.model.BleSourceConfig
 import cz.pocitas.atcollector.model.HttpsSourceConfig
@@ -52,6 +56,7 @@ import cz.pocitas.atcollector.model.SourceConfig
 import cz.pocitas.atcollector.model.SourceType
 import cz.pocitas.atcollector.model.TcpSourceConfig
 import cz.pocitas.atcollector.source.BlePermissions
+import cz.pocitas.atcollector.ui.theme.AtcollectorTheme
 import java.util.UUID
 
 /** Adds a new source, or edits [initial] when given. */
@@ -61,9 +66,11 @@ fun AddSourceScreen(
     initial: SourceConfig?,
     devices: List<BleDevice>,
     isScanning: Boolean,
+    bluetoothState: BleBluetoothState,
     onStartScan: () -> Unit,
     onStopScan: () -> Unit,
     onBlePermissionsGranted: () -> Unit,
+    onBluetoothEnableResult: () -> Unit,
     onSave: (SourceConfig) -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
@@ -90,6 +97,12 @@ fun AddSourceScreen(
             onStartScan()
         }
     }
+    val enableBluetoothLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) {
+        onBluetoothEnableResult()
+    }
+
     fun scan() {
         if (BlePermissions.granted(context)) onStartScan()
         else permissionLauncher.launch(BlePermissions.required())
@@ -138,6 +151,11 @@ fun AddSourceScreen(
                 navigationIcon = {
                     IconButton(onClick = onCancel) {
                         Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.cancel))
+                    }
+                },
+                actions = {
+                    Button(onClick = { onSave(build()) }, enabled = valid) {
+                        Text(stringResource(R.string.save))
                     }
                 },
             )
@@ -230,6 +248,20 @@ fun AddSourceScreen(
                             Text(stringResource(R.string.ble_scanning))
                         }
                     }
+                    if (scanWanted && bluetoothState == BleBluetoothState.DISABLED) {
+                        Text(stringResource(R.string.ble_bluetooth_disabled))
+                        Button(
+                            onClick = {
+                                enableBluetoothLauncher.launch(
+                                    Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE),
+                                )
+                            },
+                        ) {
+                            Text(stringResource(R.string.ble_enable_bluetooth))
+                        }
+                    } else if (scanWanted && bluetoothState == BleBluetoothState.UNAVAILABLE) {
+                        Text(stringResource(R.string.ble_bluetooth_unavailable))
+                    }
                     devices.forEach { device ->
                         ListItem(
                             headlineContent = { Text(device.name) },
@@ -248,16 +280,50 @@ fun AddSourceScreen(
                         )
                     }
                 }
-
                 SourceType.WIFI -> Text(stringResource(R.string.wifi_later))
             }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-            ) {
-                Button(onClick = { onSave(build()) }, enabled = valid) { Text(stringResource(R.string.save)) }
-            }
         }
+    }
+}
+
+@Preview(name = "Phone - Portrait", showBackground = true, widthDp = 393, heightDp = 852)
+@Composable
+private fun AddSourcePhonePortraitPreview() {
+    AddSourceScreenPreview()
+}
+
+@Preview(name = "Phone - Landscape", showBackground = true, widthDp = 852, heightDp = 393)
+@Composable
+private fun AddSourcePhoneLandscapePreview() {
+    AddSourceScreenPreview()
+}
+
+@Preview(name = "Tablet - Portrait", showBackground = true, widthDp = 800, heightDp = 1280)
+@Composable
+private fun AddSourceTabletPortraitPreview() {
+    AddSourceScreenPreview()
+}
+
+@Preview(name = "Tablet - Landscape", showBackground = true, widthDp = 1280, heightDp = 800)
+@Composable
+private fun AddSourceTabletLandscapePreview() {
+    AddSourceScreenPreview()
+}
+
+@Composable
+private fun AddSourceScreenPreview() {
+    AtcollectorTheme {
+        AddSourceScreen(
+            initial = null,
+            devices = emptyList(),
+            isScanning = false,
+            bluetoothState = BleBluetoothState.UNKNOWN,
+            onStartScan = {},
+            onStopScan = {},
+            onBlePermissionsGranted = {},
+            onBluetoothEnableResult = {},
+            onSave = {},
+            onCancel = {},
+        )
     }
 }

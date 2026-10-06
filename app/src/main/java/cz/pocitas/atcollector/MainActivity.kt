@@ -110,14 +110,17 @@ fun AdaptiveApp(viewModel: SourcesViewModel) {
     if (editorOpen) {
         val devices by viewModel.devices.collectAsState()
         val isScanning by viewModel.isScanning.collectAsState()
+        val bluetoothState by viewModel.bluetoothState.collectAsState()
         val close = { editorOpen = false; editingId = null }
         AddSourceScreen(
             initial = sources.firstOrNull { it.id == editingId },
             devices = devices,
             isScanning = isScanning,
+            bluetoothState = bluetoothState,
             onStartScan = viewModel::startScan,
             onStopScan = viewModel::stopScan,
             onBlePermissionsGranted = viewModel::onBlePermissionsGranted,
+            onBluetoothEnableResult = viewModel::onBluetoothEnableResult,
             onSave = { viewModel.save(it); close() },
             onCancel = close,
             modifier = Modifier.fillMaxSize(),
@@ -340,6 +343,12 @@ fun StatusScreen(
 }
 
 /** Lists sources with edit/delete actions, plus a button to add a new one. */
+
+/** TODO:
+ * enable/disable source toggle
+ * edit a delete do kontextového třítečkového
+ * long press and drag reorder
+ */
 @Composable
 fun SourcesScreen(
     viewModel: SourcesViewModel,
@@ -390,6 +399,7 @@ fun SourcesScreen(
                                         message = deletedMessage,
                                         actionLabel = undoLabel,
                                         withDismissAction = true,
+                                        duration = androidx.compose.material3.SnackbarDuration.Long,
                                     )
                                     if (result == SnackbarResult.ActionPerformed) viewModel.restore(source, index)
                                 }
