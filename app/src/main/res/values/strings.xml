@@ -1,4 +1,4 @@
-﻿<resources>
+<resources>
     <string name="app_name">ATCollector</string>
 
     <string name="section_status">Status</string>
@@ -11,7 +11,7 @@
     <string name="coming_later_suffix">%1$s (coming later)</string>
 
     <string name="status_stopped">Stopped</string>
-    <string name="status_connecting">Connecting…</string>
+    <string name="status_connecting">Connecting?</string>
     <string name="status_connected">Connected</string>
     <string name="status_disconnected">Disconnected</string>
     <string name="status_error">Error</string>
@@ -21,8 +21,12 @@
     <string name="close_menu">Close menu</string>
     <string name="open_menu">Open menu</string>
     <string name="no_sources">No sources yet.</string>
-    <string name="edit_source_named">Edit %1$s</string>
-    <string name="delete_source_named">Delete %1$s</string>
+    <string name="move_up">Move up</string>
+    <string name="move_down">Move down</string>
+    <string name="menu_edit">Edit</string>
+    <string name="menu_delete">Delete</string>
+    <string name="more_options_named">More options for %1$s</string>
+    <string name="enable_source_named">Enable %1$s</string>
     <string name="source_deleted">The source \"%1$s\" was deleted.</string>
     <string name="undo">Undo</string>
     <string name="health_healthy">Healthy</string>
@@ -41,7 +45,7 @@
     <string name="field_poll_interval">Polling interval (seconds)</string>
 
     <string name="ble_selected">Selected: %1$s</string>
-    <string name="ble_scanning">Scanning…</string>
+    <string name="ble_scanning">Scanning?</string>
     <string name="ble_bluetooth_disabled">Bluetooth is turned off. Enable it to scan for nearby devices.</string>
     <string name="ble_enable_bluetooth">Enable Bluetooth</string>
     <string name="ble_bluetooth_unavailable">Bluetooth is not available. Check permissions.</string>

@@ -94,6 +94,8 @@ class SourcesViewModel @Inject constructor(
 
     fun save(config: SourceConfig) = repository.upsert(config)
 
+    fun reorder(ids: List<String>) = repository.reorder(ids)
+
     fun delete(id: String) = repository.remove(id)
 
     fun restore(config: SourceConfig, index: Int) = repository.restore(config, index)

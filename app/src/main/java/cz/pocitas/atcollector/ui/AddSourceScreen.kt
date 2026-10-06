@@ -134,11 +134,12 @@ fun AddSourceScreen(
 
     fun build(): SourceConfig {
         val id = initial?.id ?: UUID.randomUUID().toString()
+        val enabled = initial?.enabled ?: true
         val finalName = name.trim().ifEmpty { defaultName() }
         return when (type) {
-            SourceType.TCP -> TcpSourceConfig(id, finalName, host.trim(), portValue!!)
-            SourceType.HTTPS -> HttpsSourceConfig(id, finalName, url.trim(), pollValue!!)
-            SourceType.BLE -> BleSourceConfig(id, finalName, bleAddress!!, bleName.orEmpty())
+            SourceType.TCP -> TcpSourceConfig(id, finalName, host.trim(), portValue!!, enabled)
+            SourceType.HTTPS -> HttpsSourceConfig(id, finalName, url.trim(), pollValue!!, enabled)
+            SourceType.BLE -> BleSourceConfig(id, finalName, bleAddress!!, bleName.orEmpty(), enabled)
             SourceType.WIFI -> error("Not implemented")
         }
     }

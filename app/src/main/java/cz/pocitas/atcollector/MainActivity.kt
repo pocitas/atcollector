@@ -7,6 +7,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.runtime.collectAsState
 import cz.pocitas.atcollector.ui.AddSourceScreen
+import cz.pocitas.atcollector.model.SourceConfig
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -24,6 +25,27 @@ import cz.pocitas.atcollector.source.SourceHealth
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
+import androidx.compose.foundation.background
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Switch
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.draw.alpha
+import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.rememberReorderableLazyListState
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.runtime.getValue
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -317,7 +339,8 @@ fun StatusScreen(
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(),
 ) {
-    val sources by viewModel.sources.collectAsState()
+    val allSources by viewModel.sources.collectAsState()
+    val sources = allSources.filter { it.enabled }
     val statuses by viewModel.statuses.collectAsState()
     val context = LocalContext.current
     LazyColumn(
@@ -342,13 +365,7 @@ fun StatusScreen(
     }
 }
 
-/** Lists sources with edit/delete actions, plus a button to add a new one. */
-
-/** TODO:
- * enable/disable source toggle
- * edit a delete do kontextového třítečkového
- * long press and drag reorder
- */
+/** Lists sources with enable switch, context menu and long-press drag reordering, plus a button to add a new one. */
 @Composable
 fun SourcesScreen(
     viewModel: SourcesViewModel,
@@ -366,50 +383,130 @@ fun SourcesScreen(
     } else {
         contentPadding.calculateLeftPadding(direction)
     }
+    val listState = rememberLazyListState()
+    val haptic = LocalHapticFeedback.current
+    var shown by remember { mutableStateOf(sources) }
+    var dragging by remember { mutableStateOf(false) }
+    LaunchedEffect(sources) { if (!dragging) shown = sources }
+    val reorderState = rememberReorderableLazyListState(listState) { from, to ->
+        val fromIndex = shown.indexOfFirst { it.id == from.key }
+        val toIndex = shown.indexOfFirst { it.id == to.key }
+        if (fromIndex >= 0 && toIndex >= 0) {
+            shown = shown.toMutableList().apply { add(toIndex, removeAt(fromIndex)) }
+            haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+        }
+    }
     Box(modifier = modifier) {
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .consumeWindowInsets(contentPadding),
             contentPadding = contentPadding,
         ) {
-            if (sources.isEmpty()) {
+            if (shown.isEmpty()) {
                 item { EmptyHint() }
             }
-            items(sources, key = { it.id }) { source ->
+            items(shown, key = { it.id }) { source ->
                 val deletedMessage = stringResource(R.string.source_deleted, source.name)
                 val undoLabel = stringResource(R.string.undo)
-                TopAlignedListItem(
-                    leadingContent = {
-                        Icon(painterResource(source.type.iconRes), contentDescription = null)
-                    },
-                    headlineContent = { Text(source.name) },
-                    supportingContent = { Text(stringResource(source.type.labelRes)) },
-                    trailingContent = {
-                        Row {
-                            IconButton(onClick = { onEdit(source.id) }) {
-                                Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.edit_source_named, source.name))
-                            }
-                            IconButton(onClick = {
-                                val index = sources.indexOf(source)
-                                viewModel.delete(source.id)
-                                scope.launch {
-                                    snackbarHostState.currentSnackbarData?.dismiss()
-                                    val result = snackbarHostState.showSnackbar(
-                                        message = deletedMessage,
-                                        actionLabel = undoLabel,
-                                        withDismissAction = true,
-                                        duration = androidx.compose.material3.SnackbarDuration.Long,
-                                    )
-                                    if (result == SnackbarResult.ActionPerformed) viewModel.restore(source, index)
-                                }
-                            }) {
-                                Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.delete_source_named, source.name))
-                            }
+                val enableText = stringResource(R.string.enable_source_named, source.name)
+                var menuOpen by remember { mutableStateOf(false) }
+                val moveUpLabel = stringResource(R.string.move_up)
+                val moveDownLabel = stringResource(R.string.move_down)
+                ReorderableItem(reorderState, key = source.id) { isDragging ->
+                val elevation by animateDpAsState(if (isDragging) 12.dp else 0.dp, label = "dragElevation")
+                val scale by animateFloatAsState(if (isDragging) 1.1f else 1f, label = "dragScale")
+                Column(
+                    modifier = Modifier
+                        .graphicsLayer {
+                            scaleX = scale
+                            scaleY = scale
                         }
-                    },
-                )
-                HorizontalDivider()
+                        .shadow(elevation)
+                        .background(MaterialTheme.colorScheme.surface)
+                        .semantics {
+                            customActions = listOf(
+                                CustomAccessibilityAction(moveUpLabel) {
+                                    moveSource(sources, source.id, -1)?.let(viewModel::reorder) != null
+                                },
+                                CustomAccessibilityAction(moveDownLabel) {
+                                    moveSource(sources, source.id, 1)?.let(viewModel::reorder) != null
+                                },
+                            )
+                        }
+                        .longPressDraggableHandle(
+                            onDragStarted = {
+                                dragging = true
+                                haptic.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
+                            },
+                            onDragStopped = {
+                                dragging = false
+                                haptic.performHapticFeedback(HapticFeedbackType.GestureEnd)
+                                viewModel.reorder(shown.map { it.id })
+                            },
+                        ),
+                ) {
+                    TopAlignedListItem(
+                        contentAlpha = if (source.enabled) 1f else 0.38f,
+                        verticalAlignment = Alignment.CenterVertically,
+                        startContent = {
+                            Switch(
+                                checked = source.enabled,
+                                onCheckedChange = { viewModel.save(source.withEnabled(it)) },
+                                modifier = Modifier.semantics { contentDescription = enableText },
+                            )
+                        },
+                        leadingContent = {
+                            Icon(painterResource(source.type.iconRes), contentDescription = null)
+                        },
+                        headlineContent = { Text(source.name) },
+                        supportingContent = { Text(stringResource(source.type.labelRes)) },
+                        trailingContent = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box {
+                                    IconButton(onClick = { menuOpen = true }) {
+                                        Icon(
+                                            Icons.Filled.MoreVert,
+                                            contentDescription = stringResource(R.string.more_options_named, source.name),
+                                        )
+                                    }
+                                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.menu_edit)) },
+                                            leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
+                                            onClick = {
+                                                menuOpen = false
+                                                onEdit(source.id)
+                                            },
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.menu_delete)) },
+                                            leadingIcon = { Icon(Icons.Filled.Delete, contentDescription = null) },
+                                            onClick = {
+                                                menuOpen = false
+                                                val index = sources.indexOf(source)
+                                                viewModel.delete(source.id)
+                                                scope.launch {
+                                                    snackbarHostState.currentSnackbarData?.dismiss()
+                                                    val result = snackbarHostState.showSnackbar(
+                                                        message = deletedMessage,
+                                                        actionLabel = undoLabel,
+                                                        withDismissAction = true,
+                                                        duration = androidx.compose.material3.SnackbarDuration.Long,
+                                                    )
+                                                    if (result == SnackbarResult.ActionPerformed) viewModel.restore(source, index)
+                                                }
+                                            },
+                                        )
+                                    }
+                                }
+                            }
+                        },
+                    )
+                    HorizontalDivider()
+                }
+                }
             }
             item { Spacer(Modifier.height(88.dp)) }
         }
@@ -425,6 +522,13 @@ fun SourcesScreen(
             Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.add_source))
         }
     }
+}
+/** Returns the ids with [id] moved by [delta] positions, or null if it would leave the list. */
+private fun moveSource(sources: List<SourceConfig>, id: String, delta: Int): List<String>? {
+    val from = sources.indexOfFirst { it.id == id }
+    val to = from + delta
+    if (from < 0 || to !in sources.indices) return null
+    return sources.map { it.id }.toMutableList().apply { add(to, removeAt(from)) }
 }
 
 @Composable
@@ -450,14 +554,18 @@ private fun TopAlignedListItem(
     supportingContent: @Composable () -> Unit,
     leadingContent: @Composable () -> Unit,
     trailingContent: @Composable () -> Unit,
+    contentAlpha: Float = 1f,
+    startContent: @Composable () -> Unit = {},
+    verticalAlignment: Alignment.Vertical = Alignment.Top,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalAlignment = Alignment.Top,
+        verticalAlignment = verticalAlignment,
     ) {
-        leadingContent()
-        Column(modifier = Modifier.weight(1f)) {
+        startContent()
+        Box(Modifier.alpha(contentAlpha)) { leadingContent() }
+        Column(modifier = Modifier.weight(1f).alpha(contentAlpha)) {
             ProvideTextStyle(MaterialTheme.typography.bodyLarge) { headlineContent() }
             ProvideTextStyle(MaterialTheme.typography.bodyMedium) { supportingContent() }
         }

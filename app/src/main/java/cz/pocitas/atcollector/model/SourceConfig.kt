@@ -20,6 +20,9 @@ sealed interface SourceConfig {
     val id: String
     val name: String
     val type: SourceType
+    val enabled: Boolean
+
+    fun withEnabled(enabled: Boolean): SourceConfig
 }
 
 data class TcpSourceConfig(
@@ -27,8 +30,10 @@ data class TcpSourceConfig(
     override val name: String,
     val host: String = DEFAULT_HOST,
     val port: Int,
+    override val enabled: Boolean = true,
 ) : SourceConfig {
     override val type get() = SourceType.TCP
+    override fun withEnabled(enabled: Boolean) = copy(enabled = enabled)
 
     companion object {
         const val DEFAULT_HOST = "localhost"
@@ -40,8 +45,10 @@ data class HttpsSourceConfig(
     override val name: String,
     val url: String,
     val pollSeconds: Int,
+    override val enabled: Boolean = true,
 ) : SourceConfig {
     override val type get() = SourceType.HTTPS
+    override fun withEnabled(enabled: Boolean) = copy(enabled = enabled)
 }
 
 data class BleSourceConfig(
@@ -49,6 +56,8 @@ data class BleSourceConfig(
     override val name: String,
     val address: String,
     val deviceName: String,
+    override val enabled: Boolean = true,
 ) : SourceConfig {
     override val type get() = SourceType.BLE
+    override fun withEnabled(enabled: Boolean) = copy(enabled = enabled)
 }

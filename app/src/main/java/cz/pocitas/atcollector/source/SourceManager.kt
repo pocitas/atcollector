@@ -38,7 +38,7 @@ class SourceManager(
     fun sync(configs: List<SourceConfig>) {
         val current = running.value
         val next = LinkedHashMap<String, Pair<SourceConfig, TrafficSource>>()
-        for (config in configs) {
+        for (config in configs.filter { it.enabled }) {
             val existing = current[config.id]
             next[config.id] = if (existing != null && existing.first == config) {
                 existing

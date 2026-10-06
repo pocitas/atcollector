@@ -42,6 +42,15 @@ class SourceRepository @Inject constructor(@ApplicationContext context: Context)
         save(current.toMutableList().apply { add(index.coerceIn(0, size), config) })
     }
 
+    /** Reorders sources to match [ids]; sources not listed keep their relative order at the end. */
+    @Synchronized
+    fun reorder(ids: List<String>) {
+        val current = _sources.value
+        val byId = current.associateBy { it.id }
+        val ordered = ids.mapNotNull { byId[it] }
+        save(ordered + current.filterNot { it.id in ids })
+    }
+
     @Synchronized
     fun remove(id: String) = save(_sources.value.filterNot { it.id == id })
 
@@ -65,6 +74,7 @@ class SourceRepository @Inject constructor(@ApplicationContext context: Context)
         .put("id", c.id)
         .put("name", c.name)
         .put("type", c.type.name)
+        .put("enabled", c.enabled)
         .apply {
             when (c) {
                 is TcpSourceConfig -> put("host", c.host).put("port", c.port)
@@ -76,10 +86,11 @@ class SourceRepository @Inject constructor(@ApplicationContext context: Context)
     private fun fromJson(o: JSONObject): SourceConfig {
         val id = o.getString("id")
         val name = o.getString("name")
+        val enabled = o.optBoolean("enabled", true)
         return when (o.getString("type")) {
-            "TCP" -> TcpSourceConfig(id, name, o.getString("host"), o.getInt("port"))
-            "HTTPS" -> HttpsSourceConfig(id, name, o.getString("url"), o.getInt("pollSeconds"))
-            "BLE" -> BleSourceConfig(id, name, o.getString("address"), o.getString("deviceName"))
+            "TCP" -> TcpSourceConfig(id, name, o.getString("host"), o.getInt("port"), enabled)
+            "HTTPS" -> HttpsSourceConfig(id, name, o.getString("url"), o.getInt("pollSeconds"), enabled)
+            "BLE" -> BleSourceConfig(id, name, o.getString("address"), o.getString("deviceName"), enabled)
             else -> throw IllegalArgumentException("Unknown source type")
         }
     }
